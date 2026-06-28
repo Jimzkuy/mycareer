@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Career Trajectory Dashboard</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["Inter", "Arial", "sans-serif"]
+          },
+          animation: {
+            "soft-in": "softIn .35s ease both",
+            "pop-in": "popIn .25s cubic-bezier(.2,.9,.2,1.12) both",
+            "dock-in": "dockIn .45s ease both",
+            "float-soft": "floatSoft 8s ease-in-out infinite"
+          },
+          keyframes: {
+            softIn: {
+              "0%": { opacity: "0", transform: "translateY(10px)" },
+              "100%": { opacity: "1", transform: "translateY(0)" }
+            },
+            popIn: {
+              "0%": { opacity: "0", transform: "translateY(16px) scale(.96)" },
+              "100%": { opacity: "1", transform: "translateY(0) scale(1)" }
+            },
+            dockIn: {
+              "0%": { opacity: "0", transform: "translateX(-50%) translateY(26px)" },
+              "100%": { opacity: "1", transform: "translateX(-50%) translateY(0)" }
+            },
+            floatSoft: {
+              "0%, 100%": { transform: "translate3d(0,0,0) scale(1)" },
+              "50%": { transform: "translate3d(18px,-20px,0) scale(1.04)" }
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    .glass {
+      background: rgba(255,255,255,.82);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+    }
+
+    .dark .glass {
+      background: rgba(15,23,42,.82);
+    }
+
+    .grid-pattern {
+      background-image:
+        linear-gradient(rgba(148,163,184,.11) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148,163,184,.11) 1px, transparent 1px);
+      background-size: 42px 42px;
+      mask-image: radial-gradient(circle at center, black 0%, transparent 72%);
+      -webkit-mask-image: radial-gradient(circle at center, black 0%, transparent 72%);
+    }
+
+    .calendar-cell {
+      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    }
+
+    .calendar-cell:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 18px 42px rgba(15,23,42,.13);
+    }
+
+    .dock-item {
+      position: relative;
+      transition: transform .18s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
+    }
+
+    .dock-item:hover {
+      transform: translateY(-9px) scale(1.08);
+      box-shadow: 0 18px 35px rgba(15,23,42,.20);
+    }
+
+    .dock-item::after {
+      content: attr(data-label);
+      position: absolute;
+      bottom: 64px;
+      left: 50%;
+      transform: translateX(-50%) translateY(6px);
+      opacity: 0;
+      pointer-events: none;
+      white-space: nowrap;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 6px 10px;
+      border-radius: 999px;
+      color: white;
+      background: rgba(15,23,42,.94);
+      transition: all .18s ease;
+    }
+
+    .dock-item:hover::after {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .scroll-soft::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    .scroll-soft::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .scroll-soft::-webkit-scrollbar-thumb {
+      background: rgba(148,163,184,.55);
+      border-radius: 999px;
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid currentColor;
+      border-right-color: transparent;
+      border-radius: 999px;
+      animation: spin .7s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+
+<body class="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+
+  <div class="fixed inset-0 pointer-events-none overflow-hidden">
+    <div class="absolute inset-0 bg-gradient-to-br from-slate-100 via-white to-emerald-50 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950"></div>
+    <div class="grid-pattern absolute inset-0 opacity-80"></div>
+    <div class="absolute -top-28 -left-28 w-80 h-80 rounded-full bg-emerald-400/20 dark:bg-emerald-500/10 blur-3xl animate-float-soft"></div>
+    <div class="absolute top-24 -right-24 w-96 h-96 rounded-full bg-blue-400/15 dark:bg-blue-500/10 blur-3xl animate-float-soft"></div>
+  </div>
+
+  <div id="loadingScreen" class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-100 dark:bg-slate-950">
+    <div class="text-center">
+      <div class="mx-auto mb-4 w-14 h-14 rounded-3xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 flex items-center justify-center shadow-xl">
+        <span class="spinner"></span>
+      </div>
+      <p class="font-bold">Opening dashboard...</p>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Checking your saved session.</p>
+    </div>
+  </div>
+
+  <div id="app" class="relative min-h-screen pb-28 hidden">
+
+    <header class="sticky top-0 z-30 glass border-b border-white/70 dark:border-slate-800">
+      <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+        <div>
+          <h1 id="appTitle" class="text-xl md:text-2xl font-black tracking-tight">
+            Career Trajectory Vision
+          </h1>
+          <p class="text-sm text-slate-500 dark:text-slate-400">
+            Select a date to view details. Use New to write a new note.
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <span id="userBadge" class="text-sm px-3 py-2 rounded-xl bg-white/70 dark:bg-slate-800 border border-white/60 dark:border-slate-700"></span>
+
+          <button
+            id="themeToggle"
+            type="button"
+            class="px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-800">
+            Theme
+          </button>
+
+          <button
+            id="logoutBtn"
+            type="button"
+            class="px-3 py-2 text-sm rounded-xl bg-red-600 text-white hover:bg-red-700">
+            Logout
+          </button>
+        </div>
+
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+      <section class="grid grid-cols-2 md:grid-cols-4 gap-3 animate-soft-in">
+        <div class="glass border border-white/70 dark:border-slate-800 rounded-3xl p-4 shadow-sm">
+          <p class="text-xs text-slate-500 dark:text-slate-400">Total Notes</p>
+          <p id="metricTotal" class="text-3xl font-black">0</p>
+        </div>
+
+        <div class="glass border border-white/70 dark:border-slate-800 rounded-3xl p-4 shadow-sm">
+          <p class="text-xs text-slate-500 dark:text-slate-400">Past</p>
+          <p id="metricPast" class="text-3xl font-black">0</p>
+        </div>
+
+        <div class="glass border border-white/70 dark:border-slate-800 rounded-3xl p-4 shadow-sm">
+          <p class="text-xs text-slate-500 dark:text-slate-400">Future</p>
+          <p id="metricFuture" class="text-3xl font-black">0</p>
+        </div>
+
+        <div class="glass border border-white/70 dark:border-slate-800 rounded-3xl p-4 shadow-sm">
+          <p class="text-xs text-slate-500 dark:text-slate-400">In Progress</p>
+          <p id="metricProgress" class="text-3xl font-black">0</p>
+        </div>
+      </section>
+
+      <section class="glass border border-white/70 dark:border-slate-800 rounded-[2rem] p-4 space-y-4 animate-soft-in shadow-sm">
+
+        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+
+          <div class="grid grid-cols-2 md:grid-cols-6 gap-3 flex-1">
+
+            <div>
+              <label class="text-xs font-bold">Year</label>
+              <select id="filterYear" class="w-full mt-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-950/80 px-3 py-2 outline-none"></select>
+            </div>
+
+            <div>
+              <label class="text-xs font-bold">Month</label>
+              <select id="filterMonth" class="w-full mt-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-950/80 px-3 py-2 outline-none">
+                <option value="">All</option>
+                <option value="1">Jan</option>
+                <option value="2">Feb</option>
+                <option value="3">Mar</option>
+                <option value="4">Apr</option>
+                <option value="5">May</option>
+                <option value="6">Jun</option>
+                <option value="7">Jul</option>
+                <option value="8">Aug</option>
+                <option value="9">Sep</option>
+                <option value="10">Oct</option>
+                <option value="11">Nov</option>
+                <option value="12">Dec</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="text-xs font-bold">Date</label>
+              <input id="filterDate" type="date" class="w-full mt-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-950/80 px-3 py-2 outline-none">
+            </div>
+
+            <div>
+              <label class="text-xs font-bold">Type</label>
+              <select id="filterType" class="w-full mt-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-950/80 px-3 py-2 outline-none">
+                <option value="">All</option>
+                <option value="Past">Past</option>
+                <option value="Future">Future</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="text-xs font-bold">Status</label>
+              <select id="filterStatus" class="w-full mt-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-950/80 px-3 py-2 outline-none">
+                <option value="">All</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="text-xs font-bold">Search</label>
+              <input id="filterSearch" type="text" placeholder="Keyword" class="w-full mt-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-950/80 px-3 py-2 outline-none">
+            </div>
+
+          </div>
+
+          <div class="flex gap-2">
+            <button id="calendarViewBtn" type="button" class="px-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-sm font-bold">
+              Calendar
+            </button>
+
+            <button id="boardViewBtn" type="button" class="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 text-sm font-bold">
+              Board
+            </button>
+
+            <button id="newNoteBtn" type="button" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold">
+              New
+            </button>
+          </div>
+
+        </div>
+
+      </section>
+
+      <section id="calendarView" class="space-y-4 animate-soft-in">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h2 id="calendarTitle" class="text-lg font-black">Calendar View</h2>
+
+          <div class="flex gap-2">
+            <button id="prevMonthBtn" type="button" class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 text-sm">Prev</button>
+            <button id="todayBtn" type="button" class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 text-sm">Today</button>
+            <button id="nextMonthBtn" type="button" class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 text-sm">Next</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-7 gap-2 text-center text-xs font-black text-slate-500 dark:text-slate-400">
+          <div>Sun</div>
+          <div>Mon</div>
+          <div>Tue</div>
+          <div>Wed</div>
+          <div>Thu</div>
+          <div>Fri</div>
+          <div>Sat</div>
+        </div>
+
+        <div id="calendarGrid" class="grid grid-cols-7 gap-2"></div>
+      </section>
+
+      <section id="boardView" class="hidden space-y-4 animate-soft-in">
+        <h2 class="text-lg font-black">Board View</h2>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+          <div class="glass border border-white/70 dark:border-slate-800 rounded-[2rem] p-4 min-h-[560px] max-h-[680px] flex flex-col shadow-sm">
+            <div class="flex items-center justify-between mb-3 shrink-0">
+              <h3 class="font-black">Past Vision</h3>
+              <span id="pastCount" class="text-xs px-2 py-1 rounded-full bg-white/70 dark:bg-slate-800 border border-white/60 dark:border-slate-700">0</span>
+            </div>
+
+            <div id="pastBoard" class="space-y-3 overflow-y-auto scroll-soft pr-1 flex-1"></div>
+          </div>
+
+          <div class="glass border border-white/70 dark:border-slate-800 rounded-[2rem] p-4 min-h-[560px] max-h-[680px] flex flex-col shadow-sm">
+            <div class="flex items-center justify-between mb-3 shrink-0">
+              <h3 class="font-black">Future Target</h3>
+              <span id="futureCount" class="text-xs px-2 py-1 rounded-full bg-white/70 dark:bg-slate-800 border border-white/60 dark:border-slate-700">0</span>
+            </div>
+
+            <div id="futureBoard" class="space-y-3 overflow-y-auto scroll-soft pr-1 flex-1"></div>
+          </div>
+
+        </div>
+      </section>
+
+      <section class="glass border border-white/70 dark:border-slate-800 rounded-[2rem] p-4 animate-soft-in shadow-sm">
+        <h2 class="text-lg font-black mb-3">Filtered Notes</h2>
+        <div id="notesList" class="space-y-3"></div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <nav class="animate-dock-in fixed left-1/2 bottom-5 z-40 -translate-x-1/2">
+    <div class="flex items-center gap-2 rounded-[2rem] border border-white/60 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl shadow-2xl px-3 py-2">
+
+      <button id="dockCalendarBtn" type="button" data-label="Calendar" title="Calendar View" class="dock-item w-12 h-12 rounded-2xl border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-white to-slate-100 dark:from-slate-800 dark:to-slate-950 flex items-center justify-center text-slate-800 dark:text-slate-100">
+        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3.5" y="4.5" width="17" height="16" rx="3"></rect>
+          <path d="M8 2.8v4"></path>
+          <path d="M16 2.8v4"></path>
+          <path d="M3.5 9h17"></path>
+          <path d="M8 13h.01"></path>
+          <path d="M12 13h.01"></path>
+          <path d="M16 13h.01"></path>
+          <path d="M8 17h.01"></path>
+          <path d="M12 17h.01"></path>
+        </svg>
+      </button>
+
+      <button id="dockBoardBtn" type="button" data-label="Vision Board" title="Board View" class="dock-item w-12 h-12 rounded-2xl border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-white to-slate-100 dark:from-slate-800 dark:to-slate-950 flex items-center justify-center text-slate-800 dark:text-slate-100">
+        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h3A2.5 2.5 0 0 1 12 5.5v13A2.5 2.5 0 0 1 9.5 21h-3A2.5 2.5 0 0 1 4 18.5z"></path>
+          <path d="M12 8.5A2.5 2.5 0 0 1 14.5 6h3A2.5 2.5 0 0 1 20 8.5v10a2.5 2.5 0 0 1-2.5 2.5h-3a2.5 2.5 0 0 1-2.5-2.5z"></path>
+          <path d="M7 7h2"></path>
+          <path d="M15 10h2"></path>
+          <path d="M7 11h2"></path>
+          <path d="M15 14h2"></path>
+        </svg>
+      </button>
+
+      <button id="dockNewBtn" type="button" data-label="New Note" title="New Note" class="dock-item w-14 h-14 rounded-2xl border border-emerald-400/60 bg-gradient-to-br from-emerald-400 via-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-xl shadow-emerald-500/25">
+        <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 5v14"></path>
+          <path d="M5 12h14"></path>
+        </svg>
+      </button>
+
+      <button id="dockTodayBtn" type="button" data-label="Today" title="Today" class="dock-item w-12 h-12 rounded-2xl border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-white to-slate-100 dark:from-slate-800 dark:to-slate-950 flex items-center justify-center text-slate-800 dark:text-slate-100">
+        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="8.5"></circle>
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M12 2.5v2"></path>
+          <path d="M12 19.5v2"></path>
+          <path d="M2.5 12h2"></path>
+          <path d="M19.5 12h2"></path>
+        </svg>
+      </button>
+
+      <button id="dockThemeBtn" type="button" data-label="Theme" title="Theme" class="dock-item w-12 h-12 rounded-2xl border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-white to-slate-100 dark:from-slate-800 dark:to-slate-950 flex items-center justify-center text-slate-800 dark:text-slate-100">
+        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3a9 9 0 1 0 9 9c0-.38-.02-.75-.07-1.12A6.5 6.5 0 0 1 12.12 3.07C12.08 3.03 12.04 3 12 3z"></path>
+          <path d="M12 3v18"></path>
+        </svg>
+      </button>
+
+    </div>
+  </nav>
+
+  <div id="dayDetailModal" class="hidden fixed inset-0 z-50 bg-black/55 p-4 overflow-y-auto">
+    <div class="max-w-3xl mx-auto bg-white dark:bg-slate-900 rounded-[2rem] shadow-xl border border-slate-200 dark:border-slate-800 p-5 animate-pop-in">
+
+      <div class="flex justify-between items-start gap-4 mb-4">
+        <div>
+          <h2 id="dayDetailTitle" class="text-xl font-black">Date Detail</h2>
+          <p id="dayDetailSubtitle" class="text-sm text-slate-500 dark:text-slate-400">
+            Notes on selected date.
+          </p>
+        </div>
+
+        <button id="closeDayDetailBtn" type="button" class="text-sm px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700">
+          Close
+        </button>
+      </div>
+
+      <div id="dayDetailList" class="space-y-3 max-h-[70vh] overflow-y-auto scroll-soft pr-1"></div>
+    </div>
+  </div>
+
+  <div id="noteModal" class="hidden fixed inset-0 z-50 bg-black/55 p-4 overflow-y-auto">
+    <div class="max-w-2xl mx-auto bg-white dark:bg-slate-900 rounded-[2rem] shadow-xl border border-slate-200 dark:border-slate-800 p-5 animate-pop-in">
+
+      <div class="flex justify-between items-start mb-4 gap-4">
+        <div>
+          <h2 id="modalTitle" class="text-xl font-black">New Note</h2>
+          <p class="text-sm text-slate-500 dark:text-slate-400">
+            Write anything on the selected date.
+          </p>
+        </div>
+
+        <button id="closeModalBtn" type="button" class="text-sm px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700">
+          Close
+        </button>
+      </div>
+
+      <input id="noteId" type="hidden">
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        <div>
+          <label class="text-sm font-bold">Date</label>
+          <input id="noteDate" type="date" class="w-full mt-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none">
+        </div>
+
+        <div>
+          <label class="text-sm font-bold">Type</label>
+          <select id="noteType" class="w-full mt-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none">
+            <option value="Past">Past</option>
+            <option value="Future">Future</option>
+          </select>
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="text-sm font-bold">Title</label>
+          <input id="noteTitle" type="text" class="w-full mt-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none" placeholder="Example: Built trainer reflection system">
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="text-sm font-bold">Description</label>
+          <textarea id="noteDescription" rows="5" class="w-full mt-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none" placeholder="Write the note, target, reflection, or achievement here..."></textarea>
+        </div>
+
+        <div>
+          <label class="text-sm font-bold">Category</label>
+          <select id="noteCategory" class="w-full mt-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none"></select>
+        </div>
+
+        <div>
+          <label class="text-sm font-bold">Priority</label>
+          <select id="notePriority" class="w-full mt-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none"></select>
+        </div>
+
+        <div>
+          <label class="text-sm font-bold">Status</label>
+          <select id="noteStatus" class="w-full mt-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none"></select>
+        </div>
+
+        <div>
+          <label class="text-sm font-bold">Progress</label>
+          <input id="noteProgress" type="number" min="0" max="100" class="w-full mt-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none" value="0">
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="text-sm font-bold">Evidence Link</label>
+          <input id="noteEvidenceLink" type="url" class="w-full mt-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none" placeholder="Google Drive / Docs / Sheet link">
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="text-sm font-bold">Upload Evidence File</label>
+          <input id="evidenceFile" type="file" class="w-full mt-1 text-sm">
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Optional. For GitHub frontend mode, keep files small because the upload is sent through the GAS API bridge.
+          </p>
+        </div>
+
+      </div>
+
+      <div class="flex flex-col md:flex-row gap-2 justify-between mt-6">
+        <button id="deleteNoteBtn" type="button" class="hidden px-4 py-3 rounded-xl bg-red-600 text-white font-bold">
+          Delete
+        </button>
+
+        <div class="flex gap-2 md:ml-auto">
+          <button id="saveNoteBtn" type="button" class="px-4 py-3 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-bold">
+            Save Note
+          </button>
+        </div>
+      </div>
+
+      <p id="modalMessage" class="text-sm mt-4 min-h-[20px]"></p>
+
+    </div>
+  </div>
+
+  <script>
+    /****************************************************
+     * GITHUB FRONTEND CONFIG
+     ****************************************************/
+
+    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwtpzfWqF33xvE10iZsAa5gBqzuHHfqCVnKNCieutLfiDES7QmetCbOe481cUM4TteR/exec";
+    const LOGIN_URL = "index.html";
+
+    const STORAGE_KEYS = {
+      token: "careerToken",
+      user: "careerUser",
+      remember: "careerRemember",
+      expiresAt: "careerExpiresAt",
+      theme: "careerTheme"
+    };
+
+    const MAX_JSONP_UPLOAD_BYTES = 900 * 1024;
+
+    /****************************************************
+     * STATE
+     ****************************************************/
+
+    let token = "";
+    let user = null;
+    let settings = {};
+    let notes = [];
+    let currentView = "Calendar";
+
+    const today = new Date();
+    let visibleYear = today.getFullYear();
+    let visibleMonth = today.getMonth() + 1;
+
+    const els = {
+      loadingScreen: document.getElementById("loadingScreen"),
+      app: document.getElementById("app"),
+
+      appTitle: document.getElementById("appTitle"),
+      userBadge: document.getElementById("userBadge"),
+      themeToggle: document.getElementById("themeToggle"),
+      logoutBtn: document.getElementById("logoutBtn"),
+
+      metricTotal: document.getElementById("metricTotal"),
+      metricPast: document.getElementById("metricPast"),
+      metricFuture: document.getElementById("metricFuture"),
+      metricProgress: document.getElementById("metricProgress"),
+
+      filterYear: document.getElementById("filterYear"),
+      filterMonth: document.getElementById("filterMonth"),
+      filterDate: document.getElementById("filterDate"),
+      filterType: document.getElementById("filterType"),
+      filterStatus: document.getElementById("filterStatus"),
+      filterSearch: document.getElementById("filterSearch"),
+
+      calendarViewBtn: document.getElementById("calendarViewBtn"),
+      boardViewBtn: document.getElementById("boardViewBtn"),
+      newNoteBtn: document.getElementById("newNoteBtn"),
+
+      dockCalendarBtn: document.getElementById("dockCalendarBtn"),
+      dockBoardBtn: document.getElementById("dockBoardBtn"),
+      dockNewBtn: document.getElementById("dockNewBtn"),
+      dockTodayBtn: document.getElementById("dockTodayBtn"),
+      dockThemeBtn: document.getElementById("dockThemeBtn"),
+
+      calendarView: document.getElementById("calendarView"),
+      boardView: document.getElementById("boardView"),
+      calendarTitle: document.getElementById("calendarTitle"),
+      calendarGrid: document.getElementById("calendarGrid"),
+
+      prevMonthBtn: document.getElementById("prevMonthBtn"),
+      todayBtn: document.getElementById("todayBtn"),
+      nextMonthBtn: document.getElementById("nextMonthBtn"),
+
+      pastBoard: document.getElementById("pastBoard"),
+      futureBoard: document.getElementById("futureBoard"),
+      pastCount: document.getElementById("pastCount"),
+      futureCount: document.getElementById("futureCount"),
+      notesList: document.getElementById("notesList"),
+
+      dayDetailModal: document.getElementById("dayDetailModal"),
+      closeDayDetailBtn: document.getElementById("closeDayDetailBtn"),
+      dayDetailTitle: document.getElementById("dayDetailTitle"),
+      dayDetailSubtitle: document.getElementById("dayDetailSubtitle"),
+      dayDetailList: document.getElementById("dayDetailList"),
+
+      noteModal: document.getElementById("noteModal"),
+      modalTitle: document.getElementById("modalTitle"),
+      closeModalBtn: document.getElementById("closeModalBtn"),
+      modalMessage: document.getElementById("modalMessage"),
+
+      noteId: document.getElementById("noteId"),
+      noteDate: document.getElementById("noteDate"),
+      noteType: document.getElementById("noteType"),
+      noteTitle: document.getElementById("noteTitle"),
+      noteDescription: document.getElementById("noteDescription"),
+      noteCategory: document.getElementById("noteCategory"),
+      notePriority: document.getElementById("notePriority"),
+      noteStatus: document.getElementById("noteStatus"),
+      noteProgress: document.getElementById("noteProgress"),
+      noteEvidenceLink: document.getElementById("noteEvidenceLink"),
+      evidenceFile: document.getElementById("evidenceFile"),
+
+      saveNoteBtn: document.getElementById("saveNoteBtn"),
+      deleteNoteBtn: document.getElementById("deleteNoteBtn")
+    };
+
+    /****************************************************
+     * API CLIENT
+     ****************************************************/
+
+    function apiCall(action, payload) {
+      return new Promise(function(resolve, reject) {
+        if (!GAS_API_URL || GAS_API_URL.includes("PASTE_YOUR_DEPLOYED_GAS_WEB_APP_URL_HERE")) {
+          reject(new Error("GAS_API_URL is not configured yet."));
+          return;
+        }
+
+        const callbackName = "careerVisionCallback_" + Date.now() + "_" + Math.floor(Math.random() * 999999);
+
+        const params = new URLSearchParams();
+        params.set("action", action);
+        params.set("callback", callbackName);
+        params.set("payload", JSON.stringify(payload || {}));
+
+        const script = document.createElement("script");
+        const separator = GAS_API_URL.includes("?") ? "&" : "?";
+
+        window[callbackName] = function(response) {
+          cleanup();
+          resolve(response);
+        };
+
+        script.onerror = function() {
+          cleanup();
+          reject(new Error("Unable to connect to GAS API."));
+        };
+
+        script.src = GAS_API_URL + separator + params.toString();
+
+        function cleanup() {
+          try {
+            delete window[callbackName];
+          } catch (err) {
+            window[callbackName] = undefined;
+          }
+
+          if (script && script.parentNode) {
+            script.parentNode.removeChild(script);
+          }
+        }
+
+        document.body.appendChild(script);
+
+        setTimeout(function() {
+          if (window[callbackName]) {
+            cleanup();
+            reject(new Error("API request timed out."));
+          }
+        }, 30000);
+      });
+    }
+
+    /****************************************************
+     * THEME + SESSION
+     ****************************************************/
+
+    function applyTheme() {
+      const theme = localStorage.getItem(STORAGE_KEYS.theme) || "light";
+
+      if (theme === "dark") {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.contains("dark");
+      localStorage.setItem(STORAGE_KEYS.theme, isDark ? "light" : "dark");
+      applyTheme();
+    }
+
+    function getStoredToken() {
+      return localStorage.getItem(STORAGE_KEYS.token) ||
+        sessionStorage.getItem(STORAGE_KEYS.token) ||
+        "";
+    }
+
+    function clearSession() {
+      [localStorage, sessionStorage].forEach(function(storage) {
+        storage.removeItem(STORAGE_KEYS.token);
+        storage.removeItem(STORAGE_KEYS.user);
+        storage.removeItem(STORAGE_KEYS.expiresAt);
+      });
+    }
+
+    function redirectToLogin() {
+      window.location.href = LOGIN_URL;
+    }
+
+    function showApp() {
+      els.loadingScreen.classList.add("hidden");
+      els.app.classList.remove("hidden");
+    }
+
+    function showLoading() {
+      els.loadingScreen.classList.remove("hidden");
+      els.app.classList.add("hidden");
+    }
+
+    /****************************************************
+     * INIT
+     ****************************************************/
+
+    async function init() {
+      applyTheme();
+      bindEvents();
+
+      token = getStoredToken();
+
+      if (!token) {
+        redirectToLogin();
+        return;
+      }
+
+      showLoading();
+
+      try {
+        const response = await apiCall("getInitialData", {
+          token: token
+        });
+
+        if (!response || !response.success) {
+          clearSession();
+          redirectToLogin();
+          return;
+        }
+
+        user = response.user;
+        settings = response.settings || {};
+        notes = response.notes || [];
+
+        setupUI();
+        render();
+        showApp();
+      } catch (err) {
+        clearSession();
+        redirectToLogin();
+      }
+    }
+
+    function setupUI() {
+      els.appTitle.textContent = settings.AppName || "Career Trajectory Vision";
+      els.userBadge.textContent = `${user.name || "User"} • ${user.role || "Member"}`;
+
+      const currentYear = new Date().getFullYear();
+      const years = [];
+
+      for (let y = currentYear - 5; y <= currentYear + 5; y++) {
+        years.push(y);
+      }
+
+      els.filterYear.innerHTML = `<option value="">All</option>` + years.map(y => {
+        return `<option value="${y}" ${y === currentYear ? "selected" : ""}>${y}</option>`;
+      }).join("");
+
+      visibleYear = currentYear;
+      visibleMonth = new Date().getMonth() + 1;
+      els.filterMonth.value = visibleMonth;
+
+      fillSelect(els.noteCategory, splitOptions(settings.CategoryOptions));
+      fillSelect(els.notePriority, splitOptions(settings.PriorityOptions));
+      fillSelect(els.noteStatus, splitOptions(settings.StatusOptions));
+      fillSelect(els.filterStatus, splitOptions(settings.StatusOptions), true);
+    }
+
+    /****************************************************
+     * RENDER
+     ****************************************************/
+
+    function render() {
+      renderMetrics();
+      renderViewButtons();
+      renderCalendar();
+      renderBoard();
+      renderNotesList();
+    }
+
+    function getFilteredNotes() {
+      const year = els.filterYear.value;
+      const month = els.filterMonth.value;
+      const exactDate = els.filterDate.value;
+      const type = els.filterType.value;
+      const status = els.filterStatus.value;
+      const search = els.filterSearch.value.toLowerCase().trim();
+
+      return notes.filter(note => {
+        const date = parseDate(note.Date);
+
+        if (exactDate && note.Date !== exactDate) return false;
+        if (!exactDate && year && date && date.getFullYear() !== Number(year)) return false;
+        if (!exactDate && month && date && date.getMonth() + 1 !== Number(month)) return false;
+        if (type && note.Type !== type) return false;
+        if (status && note.Status !== status) return false;
+
+        if (search) {
+          const haystack = [
+            note.Title,
+            note.Description,
+            note.Category,
+            note.Status,
+            note.Priority,
+            note.Type
+          ].join(" ").toLowerCase();
+
+          if (!haystack.includes(search)) return false;
+        }
+
+        return true;
+      });
+    }
+
+    function renderMetrics() {
+      const filtered = getFilteredNotes();
+
+      els.metricTotal.textContent = filtered.length;
+      els.metricPast.textContent = filtered.filter(n => n.Type === "Past").length;
+      els.metricFuture.textContent = filtered.filter(n => n.Type === "Future").length;
+      els.metricProgress.textContent = filtered.filter(n => n.Status === "In Progress").length;
+    }
+
+    function renderViewButtons() {
+      const activeClass = "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900";
+      const inactiveClass = "border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60";
+
+      if (currentView === "Calendar") {
+        els.calendarView.classList.remove("hidden");
+        els.boardView.classList.add("hidden");
+
+        els.calendarViewBtn.className = `px-4 py-2 rounded-xl text-sm font-bold ${activeClass}`;
+        els.boardViewBtn.className = `px-4 py-2 rounded-xl text-sm font-bold ${inactiveClass}`;
+      } else {
+        els.calendarView.classList.add("hidden");
+        els.boardView.classList.remove("hidden");
+
+        els.boardViewBtn.className = `px-4 py-2 rounded-xl text-sm font-bold ${activeClass}`;
+        els.calendarViewBtn.className = `px-4 py-2 rounded-xl text-sm font-bold ${inactiveClass}`;
+      }
+    }
+
+    function renderCalendar() {
+      const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ];
+
+      els.calendarTitle.textContent = `${monthNames[visibleMonth - 1]} ${visibleYear}`;
+      els.calendarGrid.innerHTML = "";
+
+      const firstDay = new Date(visibleYear, visibleMonth - 1, 1);
+      const lastDay = new Date(visibleYear, visibleMonth, 0);
+      const startBlank = firstDay.getDay();
+      const daysInMonth = lastDay.getDate();
+
+      for (let i = 0; i < startBlank; i++) {
+        const blank = document.createElement("div");
+        blank.className = "min-h-[120px] rounded-2xl bg-transparent";
+        els.calendarGrid.appendChild(blank);
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateString = toDateString(visibleYear, visibleMonth, day);
+        const dayNotes = getFilteredNotes().filter(note => note.Date === dateString);
+
+        const cell = document.createElement("button");
+        cell.type = "button";
+        cell.className = "calendar-cell text-left min-h-[120px] rounded-2xl bg-white/85 dark:bg-slate-900/85 border border-white/70 dark:border-slate-800 p-2 overflow-hidden shadow-sm";
+        cell.dataset.date = dateString;
+
+        cell.innerHTML = `
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-black">${day}</span>
+            <span class="text-[10px] px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">${dayNotes.length}</span>
+          </div>
+
+          <div class="space-y-1">
+            ${dayNotes.slice(0, 3).map(note => `
+              <div class="text-[11px] rounded-lg px-2 py-1 truncate ${note.Type === "Past" ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100" : "bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100"}">
+                ${escapeHtml(note.Title || "Untitled")}
+              </div>
+            `).join("")}
+
+            ${dayNotes.length > 3 ? `<div class="text-[11px] text-slate-500">+${dayNotes.length - 3} more</div>` : ""}
+            ${dayNotes.length === 0 ? `<div class="text-[11px] text-slate-400 dark:text-slate-500 mt-6">No note</div>` : ""}
+          </div>
+        `;
+
+        cell.addEventListener("click", function() {
+          openDayDetail(dateString);
+        });
+
+        els.calendarGrid.appendChild(cell);
+      }
+    }
+
+    function renderBoard() {
+      const filtered = getFilteredNotes();
+
+      const past = filtered.filter(note => note.Type === "Past");
+      const future = filtered.filter(note => note.Type === "Future");
+
+      els.pastCount.textContent = past.length;
+      els.futureCount.textContent = future.length;
+
+      els.pastBoard.innerHTML = past.length
+        ? past.map(noteCardHtml).join("")
+        : emptyHtml("No past notes yet.");
+
+      els.futureBoard.innerHTML = future.length
+        ? future.map(noteCardHtml).join("")
+        : emptyHtml("No future targets yet.");
+
+      bindNoteButtons();
+    }
+
+    function renderNotesList() {
+      const filtered = getFilteredNotes()
+        .sort((a, b) => String(b.Date).localeCompare(String(a.Date)));
+
+      els.notesList.innerHTML = filtered.length
+        ? filtered.map(noteCardHtml).join("")
+        : emptyHtml("No notes found.");
+
+      bindNoteButtons();
+    }
+
+    /****************************************************
+     * NOTE CARD + MODALS
+     ****************************************************/
+
+    function noteCardHtml(note) {
+      const progress = Number(note.Progress || 0);
+
+      return `
+        <article class="note-card border border-slate-200 dark:border-slate-800 rounded-2xl p-4 bg-white/75 dark:bg-slate-950/75 animate-soft-in" data-id="${escapeHtml(note.NoteID)}">
+          <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+            <div>
+              <div class="flex flex-wrap gap-2 mb-2">
+                <span class="text-xs px-2 py-1 rounded-full ${note.Type === "Past" ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100" : "bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100"}">${escapeHtml(note.Type)}</span>
+                <span class="text-xs px-2 py-1 rounded-full bg-slate-200 dark:bg-slate-800">${escapeHtml(note.Status || "")}</span>
+                <span class="text-xs px-2 py-1 rounded-full bg-slate-200 dark:bg-slate-800">${escapeHtml(note.Priority || "")}</span>
+              </div>
+
+              <h3 class="font-black">${escapeHtml(note.Title || "Untitled")}</h3>
+              <p class="text-sm text-slate-500 dark:text-slate-400">${escapeHtml(note.Date || "")} • ${escapeHtml(note.Category || "")}</p>
+            </div>
+
+            <button type="button" class="edit-note-btn text-sm px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700" data-id="${escapeHtml(note.NoteID)}">
+              Edit
+            </button>
+          </div>
+
+          <p class="text-sm mt-3 whitespace-pre-wrap">${escapeHtml(note.Description || "")}</p>
+
+          <div class="mt-3">
+            <div class="flex justify-between text-xs mb-1">
+              <span>Progress</span>
+              <span>${progress}%</span>
+            </div>
+            <div class="h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+              <div class="h-full bg-slate-900 dark:bg-slate-100" style="width:${Math.max(0, Math.min(100, progress))}%"></div>
+            </div>
+          </div>
+
+          ${note.EvidenceLink ? `
+            <a class="inline-block mt-3 text-sm underline text-blue-600 dark:text-blue-400" href="${escapeAttr(note.EvidenceLink)}" target="_blank" rel="noopener">
+              Open evidence
+            </a>
+          ` : ""}
+        </article>
+      `;
+    }
+
+    function emptyHtml(text) {
+      return `
+        <div class="text-sm text-slate-500 dark:text-slate-400 border border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-4">
+          ${escapeHtml(text)}
+        </div>
+      `;
+    }
+
+    function openDayDetail(dateString) {
+      const dayNotes = notes
+        .filter(note => note.Date === dateString)
+        .sort((a, b) => String(a.Type).localeCompare(String(b.Type)));
+
+      els.dayDetailTitle.textContent = formatReadableDate(dateString);
+      els.dayDetailSubtitle.textContent = `${dayNotes.length} note${dayNotes.length === 1 ? "" : "s"} on this date`;
+
+      els.dayDetailList.innerHTML = dayNotes.length
+        ? dayNotes.map(noteCardHtml).join("")
+        : emptyHtml("No notes on this date. Use the New button to add a note.");
+
+      els.dayDetailModal.classList.remove("hidden");
+      bindNoteButtons();
+    }
+
+    function closeDayDetail() {
+      els.dayDetailModal.classList.add("hidden");
+    }
+
+    function openModal(note, selectedDate) {
+      els.modalMessage.textContent = "";
+      els.modalMessage.className = "text-sm mt-4 min-h-[20px]";
+      els.evidenceFile.value = "";
+
+      if (note) {
+        els.modalTitle.textContent = "Edit Note";
+        els.noteId.value = note.NoteID || "";
+        els.noteDate.value = note.Date || "";
+        els.noteType.value = note.Type || "Future";
+        els.noteTitle.value = note.Title || "";
+        els.noteDescription.value = note.Description || "";
+        els.noteCategory.value = note.Category || "";
+        els.notePriority.value = note.Priority || "Medium";
+        els.noteStatus.value = note.Status || "Planned";
+        els.noteProgress.value = note.Progress || 0;
+        els.noteEvidenceLink.value = note.EvidenceLink || "";
+        els.deleteNoteBtn.classList.remove("hidden");
+      } else {
+        els.modalTitle.textContent = "New Note";
+        els.noteId.value = "";
+        els.noteDate.value = selectedDate || getTodayString();
+        els.noteType.value = "Future";
+        els.noteTitle.value = "";
+        els.noteDescription.value = "";
+        els.noteCategory.selectedIndex = 0;
+        els.notePriority.value = "Medium";
+        els.noteStatus.value = "Planned";
+        els.noteProgress.value = 0;
+        els.noteEvidenceLink.value = "";
+        els.deleteNoteBtn.classList.add("hidden");
+      }
+
+      els.noteModal.classList.remove("hidden");
+    }
+
+    function closeModal() {
+      els.noteModal.classList.add("hidden");
+    }
+
+    function bindNoteButtons() {
+      document.querySelectorAll(".edit-note-btn").forEach(button => {
+        button.onclick = function(event) {
+          event.stopPropagation();
+
+          const id = button.dataset.id;
+          const note = notes.find(item => item.NoteID === id);
+
+          if (note) {
+            closeDayDetail();
+            openModal(note);
+          }
+        };
+      });
+    }
+
+    /****************************************************
+     * SAVE / DELETE / UPLOAD
+     ****************************************************/
+
+    function collectNoteData() {
+      return {
+        NoteID: els.noteId.value,
+        Date: els.noteDate.value,
+        Type: els.noteType.value,
+        Title: els.noteTitle.value.trim(),
+        Description: els.noteDescription.value.trim(),
+        Category: els.noteCategory.value,
+        Priority: els.notePriority.value,
+        Status: els.noteStatus.value,
+        Progress: Number(els.noteProgress.value || 0),
+        EvidenceLink: els.noteEvidenceLink.value.trim()
+      };
+    }
+
+    async function saveNote() {
+      const note = collectNoteData();
+
+      if (!note.Date || !note.Title) {
+        setModalMessage("Date and title are required.", "error");
+        return;
+      }
+
+      setSaveLoading(true);
+
+      try {
+        const file = els.evidenceFile.files[0];
+
+        if (file) {
+          if (file.size > MAX_JSONP_UPLOAD_BYTES) {
+            setModalMessage("File is too large for GitHub API bridge upload. Please upload it to Drive manually and paste the link instead.", "error");
+            return;
+          }
+
+          setModalMessage("Uploading evidence file...", "info");
+          const uploadResponse = await uploadEvidenceFile(file);
+
+          if (!uploadResponse || !uploadResponse.success) {
+            setModalMessage(uploadResponse ? uploadResponse.message : "File upload failed.", "error");
+            return;
+          }
+
+          note.EvidenceLink = uploadResponse.fileUrl;
+        }
+
+        setModalMessage("Saving note...", "info");
+
+        const response = await apiCall("saveNote", {
+          token: token,
+          note: note
+        });
+
+        if (!response || !response.success) {
+          setModalMessage(response ? response.message : "Save failed.", "error");
+
+          if (response && response.expired) {
+            clearSession();
+            redirectToLogin();
+          }
+
+          return;
+        }
+
+        notes = response.notes || [];
+        closeModal();
+        render();
+      } catch (err) {
+        setModalMessage(err.message || "Save error.", "error");
+      } finally {
+        setSaveLoading(false);
+      }
+    }
+
+    function uploadEvidenceFile(file) {
+      return new Promise(function(resolve, reject) {
+        const reader = new FileReader();
+
+        reader.onload = async function(event) {
+          try {
+            const base64 = String(event.target.result).split(",")[1];
+
+            const response = await apiCall("uploadEvidenceFile", {
+              token: token,
+              fileData: {
+                fileName: file.name,
+                mimeType: file.type || "application/octet-stream",
+                base64: base64
+              }
+            });
+
+            resolve(response);
+          } catch (err) {
+            reject(err);
+          }
+        };
+
+        reader.onerror = function() {
+          reject(new Error("Unable to read selected file."));
+        };
+
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function deleteCurrentNote() {
+      const id = els.noteId.value;
+
+      if (!id) return;
+
+      const confirmed = confirm("Delete this note?");
+
+      if (!confirmed) return;
+
+      els.deleteNoteBtn.disabled = true;
+      els.deleteNoteBtn.textContent = "Deleting...";
+
+      try {
+        const response = await apiCall("deleteNote", {
+          token: token,
+          noteId: id
+        });
+
+        if (!response || !response.success) {
+          setModalMessage(response ? response.message : "Delete failed.", "error");
+
+          if (response && response.expired) {
+            clearSession();
+            redirectToLogin();
+          }
+
+          return;
+        }
+
+        notes = response.notes || [];
+        closeModal();
+        render();
+      } catch (err) {
+        setModalMessage(err.message || "Delete error.", "error");
+      } finally {
+        els.deleteNoteBtn.disabled = false;
+        els.deleteNoteBtn.textContent = "Delete";
+      }
+    }
+
+    function setSaveLoading(isLoading) {
+      els.saveNoteBtn.disabled = isLoading;
+      els.saveNoteBtn.textContent = isLoading ? "Saving..." : "Save Note";
+      els.saveNoteBtn.classList.toggle("opacity-70", isLoading);
+    }
+
+    function setModalMessage(text, type) {
+      els.modalMessage.textContent = text || "";
+
+      if (type === "error") {
+        els.modalMessage.className = "text-sm mt-4 min-h-[20px] text-red-500";
+      } else if (type === "info") {
+        els.modalMessage.className = "text-sm mt-4 min-h-[20px] text-slate-500 dark:text-slate-400";
+      } else {
+        els.modalMessage.className = "text-sm mt-4 min-h-[20px] text-emerald-600 dark:text-emerald-400";
+      }
+    }
+
+    /****************************************************
+     * LOGOUT
+     ****************************************************/
+
+    async function logout() {
+      try {
+        if (token) {
+          await apiCall("logout", {
+            token: token
+          });
+        }
+      } catch (err) {
+        // Continue logout locally even if API call fails.
+      }
+
+      clearSession();
+      redirectToLogin();
+    }
+
+    /****************************************************
+     * HELPERS
+     ****************************************************/
+
+    function splitOptions(value) {
+      return String(value || "")
+        .split(",")
+        .map(item => item.trim())
+        .filter(Boolean);
+    }
+
+    function fillSelect(select, options, withAll) {
+      select.innerHTML = "";
+
+      if (withAll) {
+        const allOption = document.createElement("option");
+        allOption.value = "";
+        allOption.textContent = "All";
+        select.appendChild(allOption);
+      }
+
+      options.forEach(option => {
+        const el = document.createElement("option");
+        el.value = option;
+        el.textContent = option;
+        select.appendChild(el);
+      });
+    }
+
+    function parseDate(value) {
+      if (!value) return null;
+
+      const parts = String(value).split("-");
+      if (parts.length !== 3) return null;
+
+      return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    }
+
+    function toDateString(year, month, day) {
+      return [
+        year,
+        String(month).padStart(2, "0"),
+        String(day).padStart(2, "0")
+      ].join("-");
+    }
+
+    function getTodayString() {
+      const now = new Date();
+      return toDateString(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    }
+
+    function formatReadableDate(dateString) {
+      const date = parseDate(dateString);
+
+      if (!date) return dateString;
+
+      return date.toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+      });
+    }
+
+    function moveMonth(delta) {
+      visibleMonth += delta;
+
+      if (visibleMonth < 1) {
+        visibleMonth = 12;
+        visibleYear--;
+      }
+
+      if (visibleMonth > 12) {
+        visibleMonth = 1;
+        visibleYear++;
+      }
+
+      els.filterYear.value = visibleYear;
+      els.filterMonth.value = visibleMonth;
+
+      render();
+    }
+
+    function goToday() {
+      const now = new Date();
+
+      visibleYear = now.getFullYear();
+      visibleMonth = now.getMonth() + 1;
+
+      els.filterYear.value = visibleYear;
+      els.filterMonth.value = visibleMonth;
+      els.filterDate.value = "";
+
+      render();
+    }
+
+    function switchToCalendar() {
+      currentView = "Calendar";
+      render();
+    }
+
+    function switchToBoard() {
+      currentView = "Board";
+      render();
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value);
+    }
+
+    /****************************************************
+     * EVENTS
+     ****************************************************/
+
+    function bindEvents() {
+      els.themeToggle.addEventListener("click", toggleTheme);
+      els.logoutBtn.addEventListener("click", logout);
+
+      els.calendarViewBtn.addEventListener("click", switchToCalendar);
+      els.boardViewBtn.addEventListener("click", switchToBoard);
+
+      els.dockCalendarBtn.addEventListener("click", switchToCalendar);
+      els.dockBoardBtn.addEventListener("click", switchToBoard);
+
+      els.dockNewBtn.addEventListener("click", function() {
+        openModal(null);
+      });
+
+      els.dockTodayBtn.addEventListener("click", goToday);
+      els.dockThemeBtn.addEventListener("click", toggleTheme);
+
+      els.newNoteBtn.addEventListener("click", function() {
+        openModal(null);
+      });
+
+      els.closeModalBtn.addEventListener("click", closeModal);
+      els.closeDayDetailBtn.addEventListener("click", closeDayDetail);
+
+      els.dayDetailModal.addEventListener("click", function(event) {
+        if (event.target === els.dayDetailModal) {
+          closeDayDetail();
+        }
+      });
+
+      els.noteModal.addEventListener("click", function(event) {
+        if (event.target === els.noteModal) {
+          closeModal();
+        }
+      });
+
+      els.saveNoteBtn.addEventListener("click", saveNote);
+      els.deleteNoteBtn.addEventListener("click", deleteCurrentNote);
+
+      els.prevMonthBtn.addEventListener("click", function() {
+        moveMonth(-1);
+      });
+
+      els.nextMonthBtn.addEventListener("click", function() {
+        moveMonth(1);
+      });
+
+      els.todayBtn.addEventListener("click", goToday);
+
+      [
+        els.filterYear,
+        els.filterMonth,
+        els.filterDate,
+        els.filterType,
+        els.filterStatus,
+        els.filterSearch
+      ].forEach(input => {
+        input.addEventListener("input", function() {
+          if (els.filterYear.value) {
+            visibleYear = Number(els.filterYear.value);
+          }
+
+          if (els.filterMonth.value) {
+            visibleMonth = Number(els.filterMonth.value);
+          }
+
+          render();
+        });
+      });
+    }
+
+    init();
+  </script>
+
+</body>
+</html>
